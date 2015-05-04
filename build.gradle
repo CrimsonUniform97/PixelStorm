@@ -1,8 +1,6 @@
 apply plugin: "java"
+apply plugin: "eclipse"
 apply plugin: "maven"
-
-group = "myorg"
-version = 1.0
 
 repositories {
     mavenCentral()
@@ -12,37 +10,30 @@ repositories {
 	}
 }
 
-sourceSets.all { set ->
-    def jarTask = task("${set.name}Jar", type: Jar) {
-        baseName = baseName + "-$set.name"
-        from set.output
-    }
-
-    artifacts {
-        archives jarTask
-    }
-}
-
-sourceSets {
-    main
-}
+sourceSets.main.java.srcDirs = ["src"]
 
 dependencies {
     compile 'org.spongepowered:spongeapi:2.0'
-	
-	compile sourceSets.main.output
-
-    testCompile 'junit:junit:4.9'
-    testCompile sourceSets.main.output
 }
 
 def buildProperties = new Properties()
 buildProperties.load(new FileReader(file("build.properties")))
 
+task projectData {
+	ext.version = buildProperties.version_major + "." + buildProperties.version_minor + "." + buildProperties.version_revision + "_B" + buildProperties.build
+	ext.mcversion = "1.8"
+}
+
+archivesBaseName = "PixelmonAuctions"
+version = projectData.mcversion + "-" + projectData.version
+
 processResources
 {
-    inputs.property "version", "1.8-" + buildProperties.version_major + "." + buildProperties.version_minor + "." + buildProperties.version_revision + "_B" + buildProperties.build
-    inputs.property "mcversion", "1.8"
+	// replace stuff everywhere
+    from(sourceSets.main.resources.srcDirs) {
+        // replace version and mcversion
+        expand 'version': projectData.version, 'mcversion': projectData.mcversion
+    }
 }
 
 task update << {
