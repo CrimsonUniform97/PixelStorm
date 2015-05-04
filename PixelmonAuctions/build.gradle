@@ -1,0 +1,73 @@
+apply plugin: "java"
+apply plugin: "maven"
+
+group = "myorg"
+version = 1.0
+
+repositories {
+    mavenCentral()
+	maven {
+		name 'Sponge API'
+		url 'http://repo.spongepowered.org/maven'
+	}
+}
+
+sourceSets.all { set ->
+    def jarTask = task("${set.name}Jar", type: Jar) {
+        baseName = baseName + "-$set.name"
+        from set.output
+    }
+
+    artifacts {
+        archives jarTask
+    }
+}
+
+sourceSets {
+    main
+}
+
+dependencies {
+    compile 'org.spongepowered:spongeapi:2.0'
+	
+	compile sourceSets.main.output
+
+    testCompile 'junit:junit:4.9'
+    testCompile sourceSets.main.output
+}
+
+def buildProperties = new Properties()
+buildProperties.load(new FileReader(file("build.properties")))
+
+processResources
+{
+    inputs.property "version", "1.8-" + buildProperties.version_major + "." + buildProperties.version_minor + "." + buildProperties.version_revision + "_B" + buildProperties.build
+    inputs.property "mcversion", "1.8"
+}
+
+task update << {
+	def properties = new Properties()
+	properties.load(new FileReader(file("build.properties")))
+	
+	if (project.hasProperty("updateto")) {
+		properties.build = (properties.build.toInteger() + 1).toString()
+		
+		if (updateto == "major") {
+			properties.version_major = (properties.version_major.toInteger() + 1).toString()
+			properties.version_minor = "0"
+			properties.version_revision = "0"
+		} else if (updateto == "minor") {
+			properties.version_minor = (properties.version_minor.toInteger() + 1).toString()
+			properties.version_revision = "0"
+		} else if (updateto == "revision") {
+			properties.version_revision = (properties.version_revision.toInteger() + 1).toString()
+		} else {
+			println "Version was not changed!"
+			properties.build = (properties.build.toInteger() - 1).toString()
+		}
+		
+		properties.store(file("build.properties").newWriter(), null)
+	} else {
+		println "Version was not changed!\nTo change the version, change the \"updateto\" property to \"major\", \"minor\" or \"revision\""
+	}
+}
