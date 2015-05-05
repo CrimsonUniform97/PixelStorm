@@ -14,6 +14,7 @@ sourceSets.main.java.srcDirs = ["src"]
 
 dependencies {
     compile 'org.spongepowered:spongeapi:2.0'
+	compile files('lib/forge-1.8-11.14.1.1398-universal.jar')
 }
 
 def buildProperties = new Properties()
