@@ -9,6 +9,7 @@ import org.spongepowered.api.service.command.CommandService;
 import org.spongepowered.api.util.command.CommandCallable;
 import org.spongepowered.api.util.command.CommandMapping;
 
+import pyroscourge.pixelauc.auction.AuctionQueue;
 import pyroscourge.pixelauc.commands.AuctionCommand;
 
 import com.google.common.base.Optional;
@@ -20,6 +21,8 @@ public class PixelmonAuctions {
 	public static final String PLUGIN_NAME = "Pixelmon Auctions";
 	public static final String PLUGIN_VERSION = "${version}";
 	
+	public static AuctionQueue queue;
+	
 	@Inject
 	private Logger logger;
 	@Inject
@@ -30,7 +33,8 @@ public class PixelmonAuctions {
 	public void onInitialization(InitializationEvent event) {
 		logger.info("{} - Version {}", PLUGIN_NAME, PLUGIN_VERSION);
 		cmdService = game.getCommandDispatcher();
-		registerCommand(new AuctionCommand(game.getServer()), "auction", "auc");
+		queue = new AuctionQueue(game.getSyncScheduler(), game.getServer());
+		registerCommand(new AuctionCommand(queue), "auction", "auc");
 	}
 	
 	private Optional<CommandMapping> registerCommand(CommandCallable command, String... alias) {
