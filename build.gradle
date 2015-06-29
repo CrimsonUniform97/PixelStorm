@@ -1,23 +1,38 @@
-apply plugin: "java"
-apply plugin: "eclipse"
-apply plugin: "maven"
+buildscript {
+    repositories {
+        mavenCentral()
+        maven {
+            name = "forge"
+            url = "http://files.minecraftforge.net/maven"
+        }
+        maven {
+            name = "sonatype"
+            url = "https://oss.sonatype.org/content/repositories/snapshots/"
+        }
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT'
+    }
+}
+
+apply plugin: 'forge'
+apply plugin: 'maven'
 
 repositories {
-    mavenCentral()
 	maven {
 		name 'Sponge API'
 		url 'http://repo.spongepowered.org/maven'
 	}
 }
 
-sourceSets.main.java.srcDirs = ["src"]
-
-dependencies {
-    compile 'org.spongepowered:spongeapi:2.1-SNAPSHOT'
-}
+evaluationDependsOn('Sponge')
 
 def buildProperties = new Properties()
 buildProperties.load(new FileReader(file("build.properties")))
+
+// Debug
+
+// End of Debug
 
 task projectData {
 	ext.version = buildProperties.version_major + "." + buildProperties.version_minor + "." + buildProperties.version_revision + "_B" + buildProperties.build
@@ -26,39 +41,106 @@ task projectData {
 
 archivesBaseName = "PixelmonAuctions"
 version = projectData.mcversion + "-" + projectData.version
+group= "pyroscourge.pixelauc" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
+
+minecraft {
+    version = "1.8-11.14.1.1398"
+    runDir = "../server"
+    
+    // the mappings can be changed at any time, and must be in the following format.
+    // snapshot_YYYYMMDD   snapshot are built nightly.
+    // stable_#            stables are built at the discretion of the MCP team.
+    // Use non-default mappings at your own risk. they may not allways work.
+    // simply re-run your setup task after changing the mappings to update your workspace.
+    mappings = "snapshot_20141130"
+}
+
+sourceSets.main.java.srcDirs = ["src"]
+
+ext.mixinSrg = new File(project.buildDir, "tmp/mixins/mixins.srg")
+ext.mixinRefMap = new File(project.buildDir, "tmp/mixins/mixins.sponge.refmap.json")
+
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
+
+dependencies {
+    //compile 'org.spongepowered:spongeapi:2.1-SNAPSHOT'
+	compile project("Sponge")
+	compile fileTree(dir: "libs", include: "**.jar")
+	
+    // you may put jars on which you depend on in ./libs
+    // or you may define them like so..
+    //compile "some.group:artifact:version:classifier"
+    //compile "some.group:artifact:version"
+      
+    // real examples
+    //compile 'com.mod-buildcraft:buildcraft:6.0.8:dev'  // adds buildcraft to the dev env
+    //compile 'com.googlecode.efficient-java-matrix-library:ejml:0.24' // adds ejml to the dev env
+
+    // for more info...
+    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
+    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+
+}
 
 processResources
 {
-	// replace stuff everywhere
+    // this will ensure that this task is redone when the versions change.
+    inputs.property "version", project.version
+    inputs.property "mcversion", project.minecraft.version
+
+    // replace stuff in mcmod.info, nothing else
     from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+                
         // replace version and mcversion
-        expand 'version': projectData.version, 'mcversion': projectData.mcversion
+        expand 'version':project.version, 'mcversion':project.minecraft.version
+    }
+        
+    // copy everything else, thats not the mcmod.info
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
     }
 }
 
-task update << {
-	def properties = new Properties()
-	properties.load(new FileReader(file("build.properties")))
-	
-	if (project.hasProperty("updateto")) {
-		properties.build = (properties.build.toInteger() + 1).toString()
-		
-		if (updateto == "major") {
-			properties.version_major = (properties.version_major.toInteger() + 1).toString()
-			properties.version_minor = "0"
-			properties.version_revision = "0"
-		} else if (updateto == "minor") {
-			properties.version_minor = (properties.version_minor.toInteger() + 1).toString()
-			properties.version_revision = "0"
-		} else if (updateto == "revision") {
-			properties.version_revision = (properties.version_revision.toInteger() + 1).toString()
-		} else {
-			println "Version was not changed!"
-			properties.build = (properties.build.toInteger() - 1).toString()
-		}
-		
-		properties.store(file("build.properties").newWriter(), null)
-	} else {
-		println "Version was not changed!\nTo change the version, change the \"updateto\" property to \"major\", \"minor\" or \"revision\""
-	}
+tasks.withType(JavaCompile) {
+    options.compilerArgs += [ '-Xlint:all', '-Xlint:-path', "-AreobfSrgFile=${tasks.reobf.srg}", "-AoutSrgFile=mixins.srg" ]
+    options.deprecation = true
+    options.encoding = 'utf8'
+}
+
+compileJava {
+    options.compilerArgs += [
+            '-Xlint:all',
+            '-Xlint:-path',
+            '-Xlint:-processing',
+            "-AoutSrgFile=${project.mixinSrg.getCanonicalPath()}",
+            "-AoutRefMapFile=${project.mixinRefMap.getCanonicalPath()}",
+            "-AreobfSrgFile=${project.file('build/srgs/mcp-srg.srg').getCanonicalPath()}"
+    ]
+    options.deprecation = true
+    options.encoding = 'UTF-8'
+}
+
+task copySrgs(type: Copy, dependsOn: "genSrgs") {
+    // using some FG hacks here
+    from plugins.getPlugin("forge").delayedFile("{SRG_DIR}")
+    include '**/*.srg'
+    into 'build/srgs'
+}
+setupDecompWorkspace.dependsOn copySrgs
+setupDevWorkspace.dependsOn copySrgs
+compileJava.dependsOn copySrgs
+
+def manifestEntries = [
+        "FMLCorePlugin": "pyroscourge.pixelauc.PixelmonAuctions",
+]
+
+jar {
+    manifest.mainAttributes(manifestEntries)
+}
+
+
+reobf {
+    reobf.addExtraSrgFile project.mixinSrg
 }

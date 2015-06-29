@@ -1,0 +1,5 @@
+rootProject.name = "PixelmonAuctions"
+include "Sponge"
+include "Sponge:SpongeCommon"
+include "Sponge:SpongeCommon:SpongeAPI"
+//include "Sponge:Mixin"
